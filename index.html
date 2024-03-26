@@ -54,27 +54,56 @@
 <body>
     <h1>EXTRAS Helper - Item By Barcode</h1>
     <input type="file" id="fileInput" accept=".xlsx"><br><br>
-    <button onclick="processExcel()">Upload Report</button>
+    <button onclick="processExcelWithSheetJS()">Upload Report</button>
     
-    <div id="status"></div> <!-- Div for displaying status messages -->
+    <div id="status"></div>
 
-    <div id="appVersion">Made with ❤️ by Harvie | Version 1.0</div> <!-- Added version info -->
+    <div id="appVersion">Made with ❤️ by Harvie | Version 1.0</div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.2.1/exceljs.min.js"></script>
     <script>
-        async function processExcel() {
+        async function processExcelWithSheetJS() {
             const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
-            const statusDiv = document.getElementById('status'); // Reference to the status div
+            const statusDiv = document.getElementById('status'); // Ensure statusDiv is within the correct scope
 
             if (!file) {
                 statusDiv.textContent = 'Please select a file.';
                 return;
             }
 
-            const workbook = new ExcelJS.Workbook();
-            await workbook.xlsx.load(file);
+            // Read the file using SheetJS
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbookSheetJS = XLSX.read(data, {type: 'array'});
+                
+                // Convert SheetJS workbook to ExcelJS workbook
+                const workbookExcelJS = new ExcelJS.Workbook();
+                await convertSheetJSToExcelJS(workbookSheetJS, workbookExcelJS);
 
+                // Manipulate the data with ExcelJS as per your script
+                await manipulateDataWithExcelJS(workbookExcelJS, statusDiv);
+
+                statusDiv.textContent = 'File processed successfully.';
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function convertSheetJSToExcelJS(workbookSheetJS, workbookExcelJS) {
+            workbookSheetJS.SheetNames.forEach(sheetName => {
+                const worksheetSheetJS = workbookSheetJS.Sheets[sheetName];
+                const worksheetExcelJS = workbookExcelJS.addWorksheet(sheetName);
+                const sheetData = XLSX.utils.sheet_to_json(worksheetSheetJS, {header: 1, raw: false});
+                
+                sheetData.forEach((row, rowIndex) => {
+                    worksheetExcelJS.addRow(row);
+                });
+            });
+        }
+
+async function manipulateDataWithExcelJS(workbook, statusDiv) { // Accept statusDiv as parameter
             const worksheet = workbook.worksheets[0];
 
 
@@ -154,23 +183,47 @@ for(let i = 2; i <= worksheet.rowCount; i++) {
                     cell.alignment = { horizontal: 'center' };
                 });
             });
-            // Save the modified workbook
-            const buffer = await workbook.xlsx.writeBuffer();
-            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            const url = URL.createObjectURL(blob);
+			
+function autofitColumns(worksheet, columns) {
+    columns.forEach(columnLetter => {
+        let maxWidth = 15; // Set a minimum width
+        const column = worksheet.getColumn(columnLetter);
+        column.eachCell({ includeEmpty: true }, cell => {
+            let cellValue = cell.value;
+            // Convert cell value to string for length calculation, considering formulas and rich text
+            if(cellValue && typeof cellValue === 'object' && cellValue.richText) {
+                cellValue = cellValue.richText.map(part => part.text).join("");
+            } else if(cellValue && typeof cellValue === 'object' && cellValue.formula) {
+                cellValue = cellValue.result || ""; // Use result if available
+            }
+            const cellWidth = cellValue ? cellValue.toString().length : 0;
+            if(cellWidth > maxWidth) {
+                maxWidth = cellWidth;
+            }
+        });
+        column.width = maxWidth < 10 ? 10 : maxWidth + 2; // Add a little extra space
+    });
+}
+// Autofit columns from A to L
+    autofitColumns(worksheet, ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']);
 
-            // Download the modified file
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'modified_excel.xlsx';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+                // Save and trigger download of the manipulated workbook
+                const buffer = await workbook.xlsx.writeBuffer();
+                const blob = new Blob([buffer], {type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+                const url = URL.createObjectURL(blob);
 
-            // Display success message
-            statusDiv.textContent = 'Excel processing completed successfully.';
-        }
+                // Download the modified file
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'modified_excel.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                statusDiv.textContent = 'Excel processing completed successfully.';
+            }
+    </script>
     </script>
 </body>
 </html>
