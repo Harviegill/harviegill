@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Operations</title>
+</head>
+<body>
+    <input type="file" id="fileInput" accept=".xlsx"><br><br>
+    <button onclick="processExcel()">Process Excel</button>
+    
+    <div id="status"></div> <!-- Div for displaying status messages -->
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.2.1/exceljs.min.js"></script>
+    <script>
+        async function processExcel() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const statusDiv = document.getElementById('status'); // Reference to the status div
+
+            if (!file) {
+                statusDiv.textContent = 'Please select a file.';
+                return;
+            }
+
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(file);
+
+            const worksheet = workbook.worksheets[0];
+
+
+
+
+
+            // Find the last row by counting column A and then delete that row
+            const lastRow = worksheet.getColumn('A').values.length;
+            worksheet.spliceRows(lastRow, 1);
+
+            // Delete first row
+            worksheet.spliceRows(1, 1);
+
+// Filter and delete in column D for everything except "A" and blank cells
+for (let i = worksheet.rowCount; i >= 2; i--) {
+    const cellValue = worksheet.getCell(`D${i}`).value;
+    // Check for blank cells explicitly
+    if (cellValue === undefined || cellValue === null || (cellValue.toString().trim() !== 'A' && cellValue.toString().trim() !== '')) {
+        worksheet.spliceRows(i, 1);
+    }
+}
+// Since ExcelJS does not support auto-filter for deletion directly, we manually filter and delete rows in column C for data containing "M" and blank cells
+for (let i = worksheet.rowCount; i >= 2; i--) {
+    const cell = worksheet.getCell(`E${i}`);
+    const cellValue = cell.value;
+    // Convert cellValue to a string and trim it for safe comparison
+    const cellText = (cellValue && cellValue.toString().trim()) || '';
+    
+    // Check if cellText starts with "M" or is blank, then delete
+    if (cellText.startsWith('M') || cellText === '') {
+        worksheet.spliceRows(i, 1);
+    }
+}
+
+ // Delete columns in the specified sequence
+            const columnsToDelete = ['L', 'K', 'H', 'G', 'F', 'D', 'C', 'B'];
+            columnsToDelete.forEach(col => {
+                worksheet.spliceColumns(worksheet.getColumn(col).number, 1);
+            });
+
+            // Write "Zones" in E1 cell and "Adjust" in F1 cell
+            worksheet.getCell('E1').value = 'Zones';
+            worksheet.getCell('F1').value = 'Adjust';
+
+
+// Step 1: Extract rows into an array
+let rows = [];
+worksheet.eachRow((row, rowNumber) => {
+    // Skip the header row
+    if (rowNumber > 1) {
+        rows.push(row.values);
+    }
+});
+
+// Step 2: Sort the array based on values in column B (which is at index 2 in the values array)
+rows.sort((a, b) => {
+    // Assuming that column B contains strings, adjust the logic here if it contains numbers or dates
+    return a[2].toString().localeCompare(b[2].toString());
+});
+
+// Step 3: Clear the existing rows (except for the header row) and re-add the sorted rows
+worksheet.spliceRows(2, worksheet.rowCount - 1); // Remove all but the header row
+rows.forEach(row => {
+    worksheet.addRow(row); // Re-add each row
+});
+
+// Loop through each row starting from row 2 to the end of your data
+for(let i = 2; i <= worksheet.rowCount; i++) {
+    // Set the formula for column 'E' in each row
+    const cell = worksheet.getCell(`E${i}`);
+    cell.value = {
+        formula: `IF(MID(SUBSTITUTE(B${i},"-",""),3,1)="1", 1, IF(MID(SUBSTITUTE(B${i},"-",""),3,1)="2", 2, IF(MID(SUBSTITUTE(B${i},"-",""),3,1)="3", 3, "")))&IF(MID(SUBSTITUTE(B${i},"-",""),6,2)*1<=20, 1, IF(MID(SUBSTITUTE(B${i},"-",""),6,2)*1<=42, 3, ""))`,
+        result: undefined
+    };
+}
+
+            // Center align data
+            worksheet.eachRow(row => {
+                row.eachCell(cell => {
+                    cell.alignment = { horizontal: 'center' };
+                });
+            });
+            // Save the modified workbook
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = URL.createObjectURL(blob);
+
+            // Download the modified file
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'modified_excel.xlsx';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // Display success message
+            statusDiv.textContent = 'Excel processing completed successfully.';
+        }
+    </script>
+</body>
+</html>
