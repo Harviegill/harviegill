@@ -62,26 +62,20 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.2.1/exceljs.min.js"></script>
     <script>
-async function processExcel() {
-    const fileInput = document.getElementById('fileInput');
-    const file = fileInput.files[0];
-    const statusDiv = document.getElementById('status'); // Reference to the status div
+        async function processExcel() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const statusDiv = document.getElementById('status'); // Reference to the status div
 
-    if (!file) {
-        statusDiv.textContent = 'Please select a file.';
-        return;
-    }
+            if (!file) {
+                statusDiv.textContent = 'Please select a file.';
+                return;
+            }
 
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(file);
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(file);
 
-    // Accessing the worksheet by name
-    const worksheet = workbook.getWorksheet('Page1_1');
-
-    if (!worksheet) {
-        statusDiv.textContent = 'Worksheet "Page1_1" not found in the Excel file.';
-        return;
-    }
+            const worksheet = workbook.worksheets[0];
 
 
             // Find the last row by counting column A and then delete that row
